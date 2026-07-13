@@ -29,46 +29,51 @@ const fragment = /* glsl */ `
   uniform vec2  uResolution;   // canvas pixels
   uniform float uImageAspect;  // width / height of the source image
   uniform vec2  uLight;        // cursor, 0..1, y up
-  uniform float uRadius;       // reveal radius (aspect-corrected screen units)
-  uniform float uSoft;         // 0..1 edge softness fraction
-  uniform float uCA;           // chromatic aberration at the reveal edge
-  uniform float uGhost;        // how much relief shows before reveal (0..1)
+  uniform float uRadius;       // lens radius (aspect-corrected screen units)
+  uniform float uSoft;         // 0..1 soft edge as fraction of radius
+  uniform float uMagnify;      // lens magnification (refraction feel)
+  uniform float uCA;           // chromatic aberration (radial, small)
+  uniform float uGamma;        // tone: darken the blown-out plaster
+  uniform float uGhost;        // faint relief embossed before reveal (0..1)
   uniform float uReveal;       // global reveal amount (intro / pointer present)
   uniform vec3  uBase;         // hidden paper color
   uniform float uTime;
 
   // "cover" fit: fill the viewport, cropping the overflowing axis.
-  vec2 coverUv(vec2 uv, float screenAspect, float imgAspect){
-    vec2 s = screenAspect > imgAspect
-      ? vec2(1.0, imgAspect / screenAspect)
-      : vec2(screenAspect / imgAspect, 1.0);
+  vec2 coverUv(vec2 uv, float A, float imgA){
+    vec2 s = A > imgA ? vec2(1.0, imgA / A) : vec2(A / imgA, 1.0);
     return (uv - 0.5) * s + 0.5;
   }
 
   void main(){
     float A = uResolution.x / uResolution.y;
-    vec2 uv = coverUv(vUv, A, uImageAspect);
 
-    // Soft circular mask that follows the cursor (measured in aspect space so
-    // the reveal is a true circle, not an ellipse).
-    vec2 p = vec2(vUv.x * A, vUv.y);
-    vec2 c = vec2(uLight.x * A, uLight.y);
-    float dist = distance(p, c);
-    float mask = 1.0 - smoothstep(uRadius * (1.0 - uSoft), uRadius, dist);
-    mask *= uReveal;
+    // Lens distance in aspect-corrected screen space (true circle).
+    vec2 sp = vec2(vUv.x * A, vUv.y);
+    vec2 sc = vec2(uLight.x * A, uLight.y);
+    float t = distance(sp, sc) / uRadius;     // 0 at cursor, 1 at rim
 
-    // Chromatic aberration across the WHOLE revealed area (dispersion grows
-    // from the cursor outward toward the mask edge), as in the reference.
-    float radial = clamp(dist / uRadius, 0.0, 1.0); // 0 center -> 1 edge
-    vec2 dir = normalize(uv - uLight + 1e-5);
-    vec2 off = dir * uCA * radial * mask;
-    float r = texture2D(uTex, uv + off).r;
-    float g = texture2D(uTex, uv).g;
-    float b = texture2D(uTex, uv - off).b;
-    vec3 relief = vec3(r, g, b);
+    float mask = (1.0 - smoothstep(1.0 - uSoft, 1.0, t)) * uReveal;
 
-    // Hidden state: paper with a whisper of the relief embossed into it.
-    vec3 hidden = mix(uBase, relief, uGhost);
+    // Sample positions in image space.
+    vec2 uvImg = coverUv(vUv, A, uImageAspect);
+    vec2 cImg  = coverUv(uLight, A, uImageAspect);
+
+    // Magnifying refraction: zoom toward the cursor, strongest at the centre
+    // and easing to none at the rim => a domed-glass feel, no streaking.
+    float dome = 1.0 - smoothstep(0.0, 1.0, t);          // 1 centre -> 0 rim
+    vec2 sample = cImg + (uvImg - cImg) * (1.0 - uMagnify * dome * uReveal);
+
+    // Subtle radial chromatic aberration — a few pixels, growing to the rim.
+    vec2 caOff = (uvImg - cImg) * uCA * mask;
+    float r = texture2D(uTex, sample + caOff).r;
+    float g = texture2D(uTex, sample).g;
+    float b = texture2D(uTex, sample - caOff).b;
+    vec3 relief = pow(clamp(vec3(r, g, b), 0.0, 1.0), vec3(uGamma));
+
+    // Hidden state: paper with an optional whisper of the relief.
+    vec3 ghost = pow(clamp(texture2D(uTex, uvImg).rgb, 0.0, 1.0), vec3(uGamma));
+    vec3 hidden = mix(uBase, ghost, uGhost);
 
     vec3 col = mix(hidden, relief, mask);
     gl_FragColor = vec4(col, 1.0);
@@ -101,10 +106,12 @@ export default function HeroRelief() {
       uResolution: { value: new THREE.Vector2(size.width, size.height) },
       uImageAspect: { value: 3000 / 2000 },
       uLight: { value: new THREE.Vector2(0.5, 0.5) },
-      uRadius: { value: 0.28 }, // reveal circle size (screen aspect units)
-      uSoft: { value: 0.5 }, // soft edge as fraction of radius
-      uCA: { value: 0.03 }, // chromatic dispersion inside the reveal
-      uGhost: { value: 0.06 }, // faint relief embossed before reveal
+      uRadius: { value: 0.24 }, // lens size (screen aspect units)
+      uSoft: { value: 0.4 }, // soft edge as fraction of radius
+      uMagnify: { value: 0.18 }, // lens magnification (refraction feel)
+      uCA: { value: 0.006 }, // radial chromatic aberration (a few px)
+      uGamma: { value: 1.45 }, // darken blown-out plaster toward gray
+      uGhost: { value: 0.04 }, // faint relief embossed before reveal
       uReveal: { value: 0 }, // eased in on first pointer move
       uBase: { value: new THREE.Color('#fcfcfc') },
       uTime: { value: 0 },
@@ -124,17 +131,11 @@ export default function HeroRelief() {
   useFrame((state) => {
     const t = state.clock.elapsedTime
     const hasMoved = lastMove.current > 0
-    const idle = performance.now() - lastMove.current > 2400
 
-    // Before the first move (or when idle) let the reveal drift gently so the
-    // page is alive; snap to the cursor as soon as it moves.
-    if (!hasMoved || idle) {
-      targetRef.current.set(0.5 + Math.cos(t * 0.3) * 0.16, 0.5 + Math.sin(t * 0.3) * 0.1)
-    }
-    light.current.lerp(targetRef.current, 0.09)
-
-    // Ease the global reveal in once things are ready.
-    revealAmt.current += (1 - revealAmt.current) * 0.03
+    // Lens simply follows the cursor (smoothed). Hidden until the first move.
+    light.current.lerp(targetRef.current, 0.14)
+    const wantReveal = hasMoved ? 1 : 0
+    revealAmt.current += (wantReveal - revealAmt.current) * 0.08
 
     const u = matRef.current.uniforms
     u.uLight.value.copy(light.current)

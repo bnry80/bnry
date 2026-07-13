@@ -19,8 +19,6 @@ export default function App() {
           </nav>
         </header>
 
-        <img className="wordmark" src="/hero/wordmark.svg" alt="Binary Pencil" />
-
         <p className="tagline">
           Binary &amp; Pencil© the Independent Design Studio of Justin Greene.
         </p>

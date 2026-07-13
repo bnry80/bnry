@@ -9,7 +9,9 @@
       "Bash(mkdir -p /Users/jgreene/Desktop/Codeworks/bnrysite/public/hero)",
       "Bash(curl -sL \"https://www.figma.com/api/mcp/asset/6a97b400-cf11-401e-80ee-d6d200267aab\" -o relief-base.png)",
       "Bash(curl -sL \"https://www.figma.com/api/mcp/asset/a706f6c4-80ae-42ad-9bab-f4c865e16248\" -o wordmark.png)",
-      "Bash(sips -g pixelWidth -g pixelHeight relief-base.png)"
+      "Bash(sips -g pixelWidth -g pixelHeight relief-base.png)",
+      "mcp__claude-in-chrome__navigate",
+      "mcp__claude-in-chrome__tabs_context_mcp"
     ]
   }
 }
