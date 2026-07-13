@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm --version)",
       "Bash(git --version)",
-      "Bash(gh --version)"
+      "Bash(gh --version)",
+      "Bash(mkdir -p \"/Users/jgreene/.claude/projects/-Users-jgreene-Desktop-Codeworks-bnrysite/memory/\")"
     ]
   }
 }

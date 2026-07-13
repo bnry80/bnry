@@ -32,20 +32,24 @@ const fragment = /* glsl */ `
   uniform float uHeightScale;  // physical rise of the surface
   uniform float uShine;        // specular exponent
   uniform float uSpec;         // specular strength
+  uniform float uReveal;       // cursor reveal radius (aspect space)
+  uniform float uChroma;       // iridescent edge dispersion
+  uniform float uAmbient;      // base fill light (airy plaster => high)
   uniform float uTime;
-  uniform vec3  uLit;          // lit color
-  uniform vec3  uShadow;       // shadow color
-  uniform vec3  uGround;       // recessed ground tint
+  uniform vec3  uLit;          // highlight color
+  uniform vec3  uShadow;       // recess / mid color
+  uniform vec3  uGround;       // paper base color
 
   float luma(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
+  float getH(vec2 uv){ return luma(texture2D(uTexture, uv).rgb); }
 
-  float getH(vec2 uv){
-    return luma(texture2D(uTexture, uv).rgb);
-  }
-
-  // cheap hash for film grain
-  float hash(vec2 p){
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float vnoise(vec2 p){
+    vec2 i = floor(p), f = fract(p);
+    float a = hash(i), b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0)), d = hash(i + vec2(1.0, 1.0));
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
   }
 
   void main(){
@@ -56,46 +60,51 @@ const fragment = /* glsl */ `
     p.x *= aspect;
     vec2 huv = p + 0.5;
 
+    // Cursor position + soft reveal falloff (1 near the pointer).
+    vec2 lp = uLight - 0.5;
+    lp.x *= aspect;
+    float dCursor = distance(p, lp);
+    float reveal = smoothstep(uReveal, 0.0, dCursor);
+
+    // Relief is always present but deepens / catches light near the cursor.
+    float depth = uDepth * (0.6 + 0.7 * reveal);
+
     float h  = getH(huv);
     float hx = getH(huv + vec2(uTexel, 0.0)) - getH(huv - vec2(uTexel, 0.0));
     float hy = getH(huv + vec2(0.0, uTexel)) - getH(huv - vec2(0.0, uTexel));
 
-    // Surface normal from the height gradient.
-    vec3 n = normalize(vec3(-hx * uDepth, -hy * uDepth, 1.0));
+    vec3 n = normalize(vec3(-hx * depth, -hy * depth, 1.0));
+    float slope = clamp(length(vec2(hx, hy)) * depth * 2.5, 0.0, 1.0);
 
-    // Point light following the cursor, in the same aspect-corrected space.
-    vec2 lp = uLight - 0.5;
-    lp.x *= aspect;
+    // Soft plaster lighting.
     vec3 lightPos = vec3(lp, uLightZ);
     vec3 fragPos  = vec3(p, h * uHeightScale);
     vec3 L = normalize(lightPos - fragPos);
-
     vec3 V = vec3(0.0, 0.0, 1.0);
     vec3 Hh = normalize(L + V);
 
     float diff = max(dot(n, L), 0.0);
-    float spec = pow(max(dot(n, Hh), 0.0), uShine) * uSpec;
-    float amb  = 0.14;
+    float spec = pow(max(dot(n, Hh), 0.0), uShine) * uSpec * (0.55 + 0.9 * reveal);
 
-    // Distance falloff so the light feels local, like a lamp over a plate.
-    float dist = length(lightPos - fragPos);
-    float atten = 1.0 / (1.0 + 1.1 * dist * dist);
+    // Self-occlusion: recesses fall into soft shadow => sculptural read.
+    float ao = mix(0.68, 1.0, smoothstep(0.0, 0.16, h));
 
-    float lit = amb + (diff * 0.95 + spec) * (0.55 + 0.9 * atten);
+    float light = (uAmbient + diff * 0.55) * ao + spec;
 
-    // Recessed ground stays darker; raised type catches the light.
-    vec3 base = mix(uGround, uShadow, smoothstep(0.02, 0.10, h));
-    vec3 col  = mix(base, uLit, clamp(lit, 0.0, 1.0));
+    // Paper base with a faint two-scale fiber texture.
+    float paper = (vnoise(vUv * vec2(aspect, 1.0) * 520.0) - 0.5) * 0.05
+                + (vnoise(vUv * 120.0) - 0.5) * 0.04;
 
-    // Fine grain for a plaster/stone surface.
-    float g = hash(vUv * uResolution + uTime) - 0.5;
-    col += g * 0.028;
+    vec3 base = mix(uGround, uShadow, smoothstep(0.02, 0.55, h));
+    vec3 col  = mix(base, uLit, clamp(light, 0.0, 1.0));
+    col += paper;
 
-    // Gentle vignette to seat the plate in the page.
-    float vig = smoothstep(1.15, 0.35, length(vUv - 0.5));
-    col *= mix(0.82, 1.0, vig);
+    // Faint iridescent chromatic fringe on the raised edges (à la immersive-g).
+    float fres = pow(1.0 - n.z, 1.5);
+    vec3 iris = 0.5 + 0.5 * cos(6.2831 * (fres * 1.2 + vec3(0.0, 0.33, 0.67)));
+    col = mix(col, col + (iris - 0.5), clamp(slope * fres * uChroma, 0.0, 1.0));
 
-    gl_FragColor = vec4(col, 1.0);
+    gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
   }
 `
 
@@ -116,15 +125,18 @@ export default function BasRelief() {
       uResolution: { value: new THREE.Vector2(size.width, size.height) },
       uTexel: { value: 1 / 2048 },
       uLight: { value: new THREE.Vector2(0.5, 0.55) },
-      uLightZ: { value: 0.5 },
-      uDepth: { value: 3.2 },
-      uHeightScale: { value: 0.12 },
-      uShine: { value: 22.0 },
-      uSpec: { value: 0.38 },
+      uLightZ: { value: 0.45 },
+      uDepth: { value: 4.2 },
+      uHeightScale: { value: 0.1 },
+      uShine: { value: 26.0 },
+      uSpec: { value: 0.55 },
+      uReveal: { value: 0.7 },
+      uChroma: { value: 0.2 },
+      uAmbient: { value: 0.64 },
       uTime: { value: 0 },
-      uLit: { value: new THREE.Color('#dfe3cf') },
-      uShadow: { value: new THREE.Color('#79826b') },
-      uGround: { value: new THREE.Color('#2f3427') },
+      uLit: { value: new THREE.Color('#f7f8f1') },
+      uShadow: { value: new THREE.Color('#c7ccb8') },
+      uGround: { value: new THREE.Color('#e7e8de') },
     }),
     [texture, size.width, size.height],
   )

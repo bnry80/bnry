@@ -31,17 +31,29 @@ export function makeWordmarkHeightmap(size = 2048): THREE.CanvasTexture {
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
 
-  // Soft glow under the type => rounded, carved edges rather than a hard cut.
-  ctx.shadowColor = 'rgba(255,255,255,0.55)'
-  ctx.shadowBlur = size * 0.012
+  // Draw each glyph a few times with decreasing blur + a soft outer glow, so
+  // the strokes read as DOMED ridges (bright crown, soft flanks) instead of a
+  // flat plateau. That gives the lighting a gradient to shade across.
+  const domeText = (text: string, y: number, px: number) => {
+    ctx.font = `${Math.round(px)}px Anton, 'Arial Narrow', sans-serif`
+    const passes = [
+      { blur: size * 0.022, alpha: 0.5 },
+      { blur: size * 0.012, alpha: 0.7 },
+      { blur: size * 0.005, alpha: 0.9 },
+      { blur: size * 0.0015, alpha: 1.0 },
+    ]
+    for (const pass of passes) {
+      ctx.shadowColor = `rgba(255,255,255,${pass.alpha})`
+      ctx.shadowBlur = pass.blur
+      ctx.fillStyle = `rgba(255,255,255,${pass.alpha})`
+      ctx.fillText(text, size * 0.5, y)
+    }
+  }
 
-  // Big condensed wordmark — the raised relief.
-  ctx.fillStyle = '#ffffff'
-  ctx.font = `${Math.round(size * 0.30)}px Anton, 'Arial Narrow', sans-serif`
-  ctx.fillText('BINARY', size * 0.5, size * 0.42)
+  domeText('BINARY', size * 0.42, size * 0.30)
+  domeText('PENCIL', size * 0.60, size * 0.135)
 
-  ctx.font = `${Math.round(size * 0.135)}px Anton, 'Arial Narrow', sans-serif`
-  ctx.fillText('PENCIL', size * 0.5, size * 0.60)
+  ctx.shadowBlur = size * 0.004
 
   // Asterisk / sparkle marks flanking the type.
   ctx.font = `${Math.round(size * 0.11)}px Fraunces, Georgia, serif`
