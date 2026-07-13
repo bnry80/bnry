@@ -62,13 +62,13 @@ const fragment = /* glsl */ `
     // Magnifying refraction: zoom toward the cursor, strongest at the centre
     // and easing to none at the rim => a domed-glass feel, no streaking.
     float dome = 1.0 - smoothstep(0.0, 1.0, t);          // 1 centre -> 0 rim
-    vec2 sample = cImg + (uvImg - cImg) * (1.0 - uMagnify * dome * uReveal);
+    vec2 samplePos = cImg + (uvImg - cImg) * (1.0 - uMagnify * dome * uReveal);
 
     // Subtle radial chromatic aberration — a few pixels, growing to the rim.
     vec2 caOff = (uvImg - cImg) * uCA * mask;
-    float r = texture2D(uTex, sample + caOff).r;
-    float g = texture2D(uTex, sample).g;
-    float b = texture2D(uTex, sample - caOff).b;
+    float r = texture2D(uTex, samplePos + caOff).r;
+    float g = texture2D(uTex, samplePos).g;
+    float b = texture2D(uTex, samplePos - caOff).b;
     vec3 relief = pow(clamp(vec3(r, g, b), 0.0, 1.0), vec3(uGamma));
 
     // Hidden state: paper with an optional whisper of the relief.
