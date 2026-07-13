@@ -1,0 +1,94 @@
+/* =========================================================================
+   Binary Pencil© — global design system
+   Palette + type tokens derived from b-p.space (Framer original).
+   Commercial fonts are stood in with free equivalents for now:
+     Suisse Int'l          → Inter
+     PP Editorial New      → Fraunces (very light optical size)
+     Neue Montreal Squeezed→ Anton
+     Suisse Int'l Mono     → JetBrains Mono
+   ========================================================================= */
+
+:root {
+  /* ---- Color ---- */
+  --sage:      #cdd3c1; /* signature muted green ground */
+  --sage-deep: #b6bda6;
+  --cream:     #f3efe6; /* off-white paper */
+  --ink:       #212121; /* near-black */
+  --ink-soft:  #4a4a45;
+  --line:      rgba(33, 33, 33, 0.14);
+
+  --bg:   var(--sage);
+  --fg:   var(--ink);
+
+  /* ---- Type ---- */
+  --sans:  'Inter', system-ui, -apple-system, sans-serif;
+  --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --cond:  'Anton', 'Arial Narrow', sans-serif;
+  --mono:  'JetBrains Mono', ui-monospace, monospace;
+
+  /* ---- Scale / rhythm ---- */
+  --pad:   clamp(1rem, 3.5vw, 2.75rem);
+  --label: clamp(0.62rem, 0.74vw, 0.74rem);
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--sage);
+}
+
+/* ---- Reusable text utilities ---- */
+.u-mono {
+  font-family: var(--mono);
+  font-size: var(--label);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.u-serif {
+  font-family: var(--serif);
+  font-weight: 300;
+  font-optical-sizing: auto;
+}
+
+.u-cond {
+  font-family: var(--cond);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
