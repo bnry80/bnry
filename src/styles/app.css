@@ -1,13 +1,17 @@
 /* =========================================================================
-   Page layout — editorial overlay on the WebGL bas-relief hero.
-   Matched to Figma frame 1846:2 (Portfolio-New).
+   Hero layout — matched to Figma frame 1846:2 (Portfolio-New).
+   Type: Helvetica Now Display (system Helvetica stand-in). Overlay text uses
+   mix-blend-difference over the WebGL relief exactly as designed.
    ========================================================================= */
 
+/* The canvas sits at z-index:-1 in the ROOT stacking context so that the
+   overlay's mix-blend-difference composites against it. If the canvas were a
+   positive-z sibling, .frame would trap the blend in its own context. */
 .scene {
   position: fixed;
   inset: 0;
-  z-index: 0;
-  background: #fcfcfc;
+  z-index: -1;
+  background: var(--paper);
 }
 
 .scene canvas {
@@ -16,87 +20,67 @@
   height: 100% !important;
 }
 
+/* .frame must NOT create a stacking context (no z-index / transform / opacity)
+   or the blend can't reach the canvas behind it. */
 .frame {
   position: relative;
-  z-index: 1;
   min-height: 100svh;
-  pointer-events: none; /* cursor drives the relief; re-enable per link */
+  pointer-events: none;
 }
 
 .frame a {
   pointer-events: auto;
 }
 
-/* ---- Nav (vertically centered over the hero) ---- */
+/* ---- Nav — vertically centered, mix-blend-difference (Figma 1846:4) ---- */
 .nav {
-  position: fixed;
+  position: absolute;
   top: 50%;
   left: 0;
-  transform: translateY(-50%);
   width: 100%;
-  padding: 0 clamp(1rem, 2.6vw, 2.6rem);
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0 clamp(1.25rem, 2.6vw, 2.5rem);
   color: #fff;
   mix-blend-mode: difference;
 }
 
 .nav__brand {
-  font-family: var(--sans);
-  font-weight: 700;
-  font-size: clamp(1.1rem, 1.6vw, 1.5rem);
-  letter-spacing: -0.03em;
+  font-weight: 700; /* Helvetica Now Display Bold */
+  font-size: clamp(1.05rem, 1.55vw, 1.5rem); /* 24px @1440 */
+  letter-spacing: -0.03em; /* -0.72px / 24 */
+  line-height: 0.8;
 }
 
 .nav__links {
   display: flex;
-  gap: clamp(1.75rem, 4vw, 3.75rem);
-  font-family: var(--sans);
-  font-weight: 500;
-  font-size: clamp(0.95rem, 1.3vw, 1.25rem);
-  letter-spacing: -0.03em;
+  gap: clamp(1.75rem, 4.15vw, 3.75rem); /* 60px @1440 */
+  font-weight: 500; /* Medium */
+  font-size: clamp(0.95rem, 1.35vw, 1.25rem); /* 20px @1440 */
+  letter-spacing: -0.03em; /* -0.6px / 20 */
+  line-height: 0.8;
 }
 
 .nav__links a {
-  opacity: 0.92;
   transition: opacity 0.3s ease;
 }
 
 .nav__links a:hover {
-  opacity: 1;
+  opacity: 0.55;
 }
 
-/* ---- Bottom wordmark (BINARY PENCIL outline) ---- */
-.wordmark {
-  position: fixed;
-  left: 50%;
-  bottom: clamp(3.5rem, 7vh, 5.5rem);
-  transform: translateX(-50%);
-  width: min(96vw, 1440px);
-  height: auto;
-  mix-blend-mode: difference;
-  opacity: 0.9;
-  pointer-events: none;
-}
-
-/* ---- Tagline (bottom-left) ---- */
+/* ---- Tagline — bottom-left, mix-blend-difference (Figma 1846:12) ---- */
 .tagline {
-  position: fixed;
-  left: clamp(1rem, 2.6vw, 2.6rem);
-  bottom: clamp(1rem, 2.2vh, 1.75rem);
-  max-width: 42ch;
-  font-family: var(--sans);
-  font-weight: 500;
-  font-size: clamp(0.8rem, 1.05vw, 1rem);
-  line-height: 0.95;
-  letter-spacing: -0.015em;
+  position: absolute;
+  left: clamp(1.25rem, 2.6vw, 2.5rem);
+  bottom: clamp(1.1rem, 2.4vh, 1.6rem);
+  max-width: 34ch;
+  font-weight: 500; /* Medium */
+  font-size: clamp(0.82rem, 1.1vw, 1rem); /* 16px @1440 */
+  line-height: 0.9;
+  letter-spacing: -0.015em; /* -0.24px / 16 */
   color: #fff;
   mix-blend-mode: difference;
-}
-
-@media (max-width: 640px) {
-  .tagline {
-    max-width: 26ch;
-  }
 }

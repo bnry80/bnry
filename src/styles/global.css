@@ -17,11 +17,14 @@
   --ink-soft:  #4a4a45;
   --line:      rgba(33, 33, 33, 0.14);
 
-  --bg:   var(--sage);
+  --paper: #fcfcfc; /* Figma canvas ground */
+  --bg:   var(--paper);
   --fg:   var(--ink);
 
-  /* ---- Type ---- */
-  --sans:  'Inter', system-ui, -apple-system, sans-serif;
+  /* ---- Type ----
+     Design spec uses Helvetica Now Display (commercial). Stood in with the
+     system Helvetica stack — the closest faithful match with no license. */
+  --sans:  'Helvetica Now Display', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
   --cond:  'Anton', 'Arial Narrow', sans-serif;
   --mono:  'JetBrains Mono', ui-monospace, monospace;
