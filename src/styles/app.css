@@ -1,11 +1,13 @@
 /* =========================================================================
-   Page layout — editorial overlay on top of the WebGL bas-relief.
+   Page layout — editorial overlay on the WebGL bas-relief hero.
+   Matched to Figma frame 1846:2 (Portfolio-New).
    ========================================================================= */
 
 .scene {
   position: fixed;
   inset: 0;
   z-index: 0;
+  background: #fcfcfc;
 }
 
 .scene canvas {
@@ -18,38 +20,46 @@
   position: relative;
   z-index: 1;
   min-height: 100svh;
-  padding: var(--pad);
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  pointer-events: none; /* let the cursor drive the relief; re-enable per link */
+  pointer-events: none; /* cursor drives the relief; re-enable per link */
 }
 
 .frame a {
   pointer-events: auto;
 }
 
-/* ---- Nav ---- */
+/* ---- Nav (vertically centered over the hero) ---- */
 .nav {
+  position: fixed;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  width: 100%;
+  padding: 0 clamp(1rem, 2.6vw, 2.6rem);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  color: #fff;
   mix-blend-mode: difference;
-  color: #fff; /* difference blend makes this legible on any ground */
 }
 
 .nav__brand {
-  font-size: clamp(0.72rem, 0.95vw, 0.9rem);
-  letter-spacing: 0.02em;
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: clamp(1.1rem, 1.6vw, 1.5rem);
+  letter-spacing: -0.03em;
 }
 
 .nav__links {
   display: flex;
-  gap: clamp(1.5rem, 4vw, 3.5rem);
+  gap: clamp(1.75rem, 4vw, 3.75rem);
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: clamp(0.95rem, 1.3vw, 1.25rem);
+  letter-spacing: -0.03em;
 }
 
 .nav__links a {
-  position: relative;
-  opacity: 0.85;
+  opacity: 0.92;
   transition: opacity 0.3s ease;
 }
 
@@ -57,135 +67,36 @@
   opacity: 1;
 }
 
-/* ---- Side rails / micro-labels ---- */
-.rail {
+/* ---- Bottom wordmark (BINARY PENCIL outline) ---- */
+.wordmark {
   position: fixed;
-  top: 50%;
-  display: flex;
-  gap: 1.5rem;
-  color: var(--ink);
+  left: 50%;
+  bottom: clamp(3.5rem, 7vh, 5.5rem);
+  transform: translateX(-50%);
+  width: min(96vw, 1440px);
+  height: auto;
   mix-blend-mode: difference;
-  filter: invert(1);
-}
-
-.rail--left {
-  left: var(--pad);
-  transform-origin: left center;
-  transform: rotate(-90deg) translateX(-50%);
-  white-space: nowrap;
-}
-
-.statement {
-  position: fixed;
-  top: calc(var(--pad) + 4.2rem);
-  right: var(--pad);
-  text-align: right;
-  line-height: 1.5;
-  color: #fff;
-  mix-blend-mode: difference;
-}
-
-.statement__mark {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1.1rem;
-}
-
-.statement__dot {
-  width: 12px;
-  height: 12px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-}
-
-.statement__line {
-  width: clamp(48px, 7vw, 96px);
-  height: 1px;
-  background: currentColor;
-}
-
-.statement__star {
-  font-size: 1.1rem;
-  line-height: 0;
-}
-
-/* ---- Center serif lockup ---- */
-.lockup {
-  align-self: end;
-  justify-self: center;
-  width: min(46ch, 100%);
-  text-align: center;
-  margin-bottom: clamp(1.5rem, 6vh, 4rem);
-  color: var(--cream);
-  mix-blend-mode: difference;
-}
-
-.lockup__lead {
-  color: #fff;
-  line-height: 1.5;
-  margin-bottom: 1.4rem;
   opacity: 0.9;
+  pointer-events: none;
 }
 
-.lockup__title {
-  font-size: clamp(1.35rem, 2.6vw, 2.4rem);
-  line-height: 1.08;
-  letter-spacing: -0.01em;
-}
-
-/* ---- Marquee ---- */
-.marquee {
-  position: relative;
-  overflow: hidden;
-  width: 100%;
-  margin-bottom: calc(var(--pad) * -1);
-  margin-left: calc(var(--pad) * -1);
-  padding-left: 0;
-  width: 100vw;
-}
-
-.marquee__inner {
-  display: flex;
-  width: max-content;
-  will-change: transform;
-}
-
-.marquee__track {
-  display: flex;
-  flex: 0 0 auto;
-}
-
-.marquee__item {
-  font-size: clamp(3.5rem, 12vw, 11rem);
-  line-height: 0.9;
-  color: var(--cream);
+/* ---- Tagline (bottom-left) ---- */
+.tagline {
+  position: fixed;
+  left: clamp(1rem, 2.6vw, 2.6rem);
+  bottom: clamp(1rem, 2.2vh, 1.75rem);
+  max-width: 42ch;
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: clamp(0.8rem, 1.05vw, 1rem);
+  line-height: 0.95;
+  letter-spacing: -0.015em;
+  color: #fff;
   mix-blend-mode: difference;
-  white-space: nowrap;
-  padding-right: 0.35em;
 }
 
-.marquee__sep {
-  padding: 0 0.35em;
-  font-size: 0.5em;
-  vertical-align: middle;
-}
-
-/* ---- Motion & small-screen niceties ---- */
 @media (max-width: 640px) {
-  .rail,
-  .statement {
-    display: none;
-  }
-  .lockup {
-    justify-self: start;
-    text-align: left;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .marquee__inner {
-    animation: none !important;
+  .tagline {
+    max-width: 26ch;
   }
 }

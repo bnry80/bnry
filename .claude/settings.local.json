@@ -4,7 +4,12 @@
       "Bash(npm --version)",
       "Bash(git --version)",
       "Bash(gh --version)",
-      "Bash(mkdir -p \"/Users/jgreene/.claude/projects/-Users-jgreene-Desktop-Codeworks-bnrysite/memory/\")"
+      "Bash(mkdir -p \"/Users/jgreene/.claude/projects/-Users-jgreene-Desktop-Codeworks-bnrysite/memory/\")",
+      "mcp__64d448fd-7d0a-497f-955b-0fe344c4f286__get_design_context",
+      "Bash(mkdir -p /Users/jgreene/Desktop/Codeworks/bnrysite/public/hero)",
+      "Bash(curl -sL \"https://www.figma.com/api/mcp/asset/6a97b400-cf11-401e-80ee-d6d200267aab\" -o relief-base.png)",
+      "Bash(curl -sL \"https://www.figma.com/api/mcp/asset/a706f6c4-80ae-42ad-9bab-f4c865e16248\" -o wordmark.png)",
+      "Bash(sips -g pixelWidth -g pixelHeight relief-base.png)"
     ]
   }
 }

@@ -1,9 +1,10 @@
+import { Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
-import BasRelief from '../three/BasRelief'
+import HeroRelief from '../three/HeroRelief'
 
 /**
  * Full-viewport WebGL layer that sits behind the editorial UI.
- * An orthographic camera keeps the plate flat and pixel-stable.
+ * An orthographic camera keeps the relief flat and pixel-stable.
  */
 export default function Scene() {
   return (
@@ -14,7 +15,9 @@ export default function Scene() {
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: false }}
       >
-        <BasRelief />
+        <Suspense fallback={null}>
+          <HeroRelief />
+        </Suspense>
       </Canvas>
     </div>
   )
