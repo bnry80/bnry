@@ -17,30 +17,52 @@ const PATH = '/hero/relief.glb'
 const WALL = '#ececea'
 const TRAIL = 1024
 
-// Light plaster matcap: bright upper-left highlight easing to a soft grey rim.
+// Matte plaster matcap: high-key, low-contrast, soft top-light. Deliberately
+// NO specular hotspot and NO dark rim — that contrast is what read as glossy
+// silver. This gives soft clay/porcelain diffuse shading instead.
 function makeMatcap(size = 256) {
   const c = document.createElement('canvas')
   c.width = c.height = size
   const ctx = c.getContext('2d')!
-  const g = ctx.createRadialGradient(
-    size * 0.38, size * 0.34, size * 0.02,
-    size * 0.5, size * 0.52, size * 0.62,
-  )
-  g.addColorStop(0.0, '#fbfbfb')
-  g.addColorStop(0.35, '#eeeeec')
-  g.addColorStop(0.7, '#dcdcda')
-  g.addColorStop(1.0, '#c6c6c4')
-  ctx.fillStyle = g
+
+  // Soft diffuse: gently brighter up top, slightly cooler-dim at the bottom.
+  const lin = ctx.createLinearGradient(0, 0, 0, size)
+  lin.addColorStop(0.0, '#fcfcfb')
+  lin.addColorStop(0.55, '#f0f0ee')
+  lin.addColorStop(1.0, '#e2e2df')
+  ctx.fillStyle = lin
   ctx.fillRect(0, 0, size, size)
-  // faint grain so the plaster isn't glassy
+
+  // Very broad, faint fill light (no tight hotspot => matte, not shiny).
+  const fill = ctx.createRadialGradient(
+    size * 0.44, size * 0.36, 0,
+    size * 0.5, size * 0.5, size * 0.75,
+  )
+  fill.addColorStop(0.0, 'rgba(255,255,255,0.28)')
+  fill.addColorStop(1.0, 'rgba(255,255,255,0)')
+  ctx.fillStyle = fill
+  ctx.fillRect(0, 0, size, size)
+
+  // Gentle soft-AO only right at the silhouette — keeps it light, not metallic.
+  const rim = ctx.createRadialGradient(
+    size * 0.5, size * 0.5, size * 0.38,
+    size * 0.5, size * 0.5, size * 0.5,
+  )
+  rim.addColorStop(0.0, 'rgba(60,58,54,0)')
+  rim.addColorStop(1.0, 'rgba(60,58,54,0.14)')
+  ctx.fillStyle = rim
+  ctx.fillRect(0, 0, size, size)
+
+  // Faint grain so it reads as chalk, not plastic.
   const img = ctx.getImageData(0, 0, size, size)
   for (let i = 0; i < img.data.length; i += 4) {
-    const n = (Math.random() - 0.5) * 4
+    const n = (Math.random() - 0.5) * 3
     img.data[i] += n
     img.data[i + 1] += n
     img.data[i + 2] += n
   }
   ctx.putImageData(img, 0, 0)
+
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
   return tex
