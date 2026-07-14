@@ -2,20 +2,21 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useGLTF, useTexture } from '@react-three/drei'
 import * as THREE from 'three'
+import { FluidSim } from './FluidSim'
 
 /* -------------------------------------------------------------------------
-   Faithful port of Immersive Garden's home relief (reverse-engineered from
-   their default.BZYNaK9D.js — see memory reference-immersive-garden-effect):
+   Immersive Garden-style home relief:
 
-   • 3D GLB relief, matcap-shaded => continuous plaster wall
-   • Mouse leaves a dissipating fluid DYE trail (screen-space)
-   • The "chromatic" look is IRIDESCENCE: surface normal -> HSV -> hue-shift,
-     mixed in ONLY where fresnel-rim × dye × animated-lines × amplitude
+   • Blank matte plaster wall by default — the 3D GLB relief is hidden
+   • The mouse splats velocity + dye into a REAL fluid simulation (FluidSim);
+     the dye field is the reveal mask, so the reveal flows, swirls and keeps
+     momentum after the cursor passes instead of stamping fading circles
+   • Where revealed, the mesh grows out of the page (vertex displacement)
+     with matcap shading and a whisper of chromatic aberration on the edge
    ------------------------------------------------------------------------- */
 
 const PATH = '/hero/relief.glb'
 const WALL = '#ececea'
-const TRAIL = 1024
 
 // Matte plaster matcap: high-key, low-contrast, soft top-light. Deliberately
 // NO specular hotspot and NO dark rim — that contrast is what read as glossy
@@ -68,20 +69,6 @@ function makeMatcap(size = 256) {
   return tex
 }
 
-function makeTrail() {
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = TRAIL
-  const ctx = canvas.getContext('2d')!
-  ctx.fillStyle = '#000'
-  ctx.fillRect(0, 0, TRAIL, TRAIL)
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.minFilter = THREE.LinearFilter
-  tex.magFilter = THREE.LinearFilter
-  tex.generateMipmaps = false
-  tex.colorSpace = THREE.NoColorSpace
-  return { canvas, ctx, tex }
-}
-
 const vertex = /* glsl */ `
   uniform sampler2D uTrail;
   uniform float uGrow;
@@ -94,10 +81,10 @@ const vertex = /* glsl */ `
     vViewNormal = normalize(normalMatrix * normal);
 
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    // Sample the dye trail at this vertex's projected screen position.
+    // Sample the fluid dye at this vertex's projected screen position.
     vec4 clip = projectionMatrix * mv;
     vec2 screenUv = clip.xy / clip.w * 0.5 + 0.5;
-    float dye = texture2D(uTrail, vec2(screenUv.x, 1.0 - screenUv.y)).r;
+    float dye = texture2D(uTrail, screenUv).r;
     float grow = smoothstep(0.0, 0.5, dye);
     vGrow = grow;
 
@@ -148,9 +135,9 @@ const fragment = /* glsl */ `
     vec3 n = normalize(vViewNormal);
     vec2 matcapUv = getMatcapUv(vMvPosition, n);
 
-    // Mouse dye trail => reveal mask (screen space; trail canvas is y-down).
+    // Fluid dye => reveal mask (screen space; GL render target is y-up).
     vec2 suv = gl_FragCoord.xy / uResolution;
-    float dye = texture2D(uTrail, vec2(suv.x, 1.0 - suv.y)).r;
+    float dye = texture2D(uTrail, suv).r;
     float mask = smoothstep(0.03, 0.55, dye);
 
     // Subtle chromatic aberration at the fresh reveal boundary (green/magenta).
@@ -177,12 +164,13 @@ export default function HeroRelief() {
   const matcapTex = useMemo(() => makeMatcap(256), [])
   const plasterMap = useTexture('/hero/plaster.jpg')
   const root = useRef<THREE.Group>(null!)
-  const { size, camera } = useThree()
+  const { size, camera, gl } = useThree()
 
-  const trail = useMemo(() => makeTrail(), [])
+  // Real fluid simulation — the dye field drives the reveal.
+  const sim = useMemo(() => new FluidSim(gl), [gl])
   const pointer = useRef(new THREE.Vector2(0.5, 0.5))
-  const head = useRef(new THREE.Vector2(0.5, 0.5))
   const prev = useRef(new THREE.Vector2(0.5, 0.5))
+  const delta = useRef(new THREE.Vector2())
   const hasMoved = useRef(false)
 
   useMemo(() => {
@@ -193,7 +181,7 @@ export default function HeroRelief() {
   const uniforms = useMemo(
     () => ({
       uMatcap: { value: matcapTex },
-      uTrail: { value: trail.tex },
+      uTrail: { value: sim.texture },
       uPlaster: { value: plasterMap },
       uResolution: { value: new THREE.Vector2(1, 1) },
       uTime: { value: 0 },
@@ -201,7 +189,7 @@ export default function HeroRelief() {
       uCA: { value: 0.012 },
       uGrow: { value: 0.3 },
     }),
-    [matcapTex, plasterMap, trail.tex],
+    [matcapTex, plasterMap, sim],
   )
 
   const material = useMemo(
@@ -307,8 +295,14 @@ export default function HeroRelief() {
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
+      // uv space, y up — matches the sim's render-target orientation.
+      const next = new THREE.Vector2(
+        e.clientX / window.innerWidth,
+        1 - e.clientY / window.innerHeight,
+      )
+      if (!hasMoved.current) prev.current.copy(next)
       hasMoved.current = true
-      pointer.current.set(e.clientX / window.innerWidth, e.clientY / window.innerHeight)
+      pointer.current.copy(next)
     }
     window.addEventListener('pointermove', onMove, { passive: true })
     return () => window.removeEventListener('pointermove', onMove)
@@ -318,45 +312,22 @@ export default function HeroRelief() {
     uniforms.uResolution.value.set(size.width * state.viewport.dpr, size.height * state.viewport.dpr)
     uniforms.uTime.value = state.clock.elapsedTime
 
-    const { ctx, tex } = trail
-    // Dissipating dye — soft wash across the wall.
-    const keep = Math.pow(0.986, dt * 60)
-    ctx.globalCompositeOperation = 'source-over'
-    ctx.fillStyle = `rgba(0,0,0,${1 - keep})`
-    ctx.fillRect(0, 0, TRAIL, TRAIL)
-
-    if (hasMoved.current) {
-      // Tight follow — the reveal must feel welded to the cursor, not trailing.
-      const ease = 1 - Math.exp(-60 * dt)
-      head.current.lerp(pointer.current, ease)
-      const steps = Math.max(1, Math.ceil(head.current.distanceTo(prev.current) * TRAIL * 0.7))
-      ctx.globalCompositeOperation = 'lighter'
-      for (let i = 0; i <= steps; i++) {
-        const t = steps === 0 ? 1 : i / steps
-        const x = THREE.MathUtils.lerp(prev.current.x, head.current.x, t) * TRAIL
-        const y = THREE.MathUtils.lerp(prev.current.y, head.current.y, t) * TRAIL
-        const r = TRAIL * 0.14
-        const g = ctx.createRadialGradient(x, y, 0, x, y, r)
-        g.addColorStop(0, 'rgba(255,255,255,0.5)')
-        g.addColorStop(0.35, 'rgba(255,255,255,0.2)')
-        g.addColorStop(1, 'rgba(0,0,0,0)')
-        ctx.fillStyle = g
-        ctx.beginPath()
-        ctx.arc(x, y, r, 0, Math.PI * 2)
-        ctx.fill()
-      }
-      ctx.globalCompositeOperation = 'source-over'
-      prev.current.copy(head.current)
+    // Splat this frame's stroke into the fluid, then integrate the sim.
+    delta.current.subVectors(pointer.current, prev.current)
+    if (hasMoved.current && delta.current.lengthSq() > 1e-9) {
+      sim.splat(pointer.current, delta.current, size.width / Math.max(size.height, 1))
     }
-    tex.needsUpdate = true
+    prev.current.copy(pointer.current)
+    sim.step(dt)
+    uniforms.uTrail.value = sim.texture
   })
 
   useEffect(
     () => () => {
-      trail.tex.dispose()
+      sim.dispose()
       material.dispose()
     },
-    [material, trail.tex],
+    [material, sim],
   )
 
   return (
