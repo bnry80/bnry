@@ -61,14 +61,29 @@ function makeTrail() {
 }
 
 const vertex = /* glsl */ `
+  uniform sampler2D uTrail;
+  uniform float uGrow;
   varying vec2 vUv;
   varying vec3 vViewNormal;
   varying vec4 vMvPosition;
+  varying float vGrow;
   void main() {
     vUv = uv;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vMvPosition = mv;
     vViewNormal = normalize(normalMatrix * normal);
+
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    // Sample the dye trail at this vertex's projected screen position.
+    vec4 clip = projectionMatrix * mv;
+    vec2 screenUv = clip.xy / clip.w * 0.5 + 0.5;
+    float dye = texture2D(uTrail, vec2(screenUv.x, 1.0 - screenUv.y)).r;
+    float grow = smoothstep(0.0, 0.5, dye);
+    vGrow = grow;
+
+    // Recede into the page when hidden; sit at full depth where revealed, so
+    // the 3D relief grows OUT of the flat wall as the cursor passes.
+    mv.z -= uGrow * (1.0 - grow);
+
+    vMvPosition = mv;
     gl_Position = projectionMatrix * mv;
   }
 `
@@ -162,6 +177,7 @@ export default function HeroRelief() {
       uTime: { value: 0 },
       uWall: { value: new THREE.Color(WALL) },
       uCA: { value: 0.012 },
+      uGrow: { value: 0.3 },
     }),
     [matcapTex, plasterMap, trail.tex],
   )
