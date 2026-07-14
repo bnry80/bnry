@@ -17,7 +17,10 @@
       "Bash(node -e 'process.stdin.resume\\(\\);let d=\"\";process.stdin.on\\(\"data\",c=>d+=c\\);process.stdin.on\\(\"end\",\\(\\)=>{ // pretty-ish: split on ; and { } *)",
       "Bash(echo \"=== search for the recording ===\"; \\\\ *)",
       "Bash(npx tsc *)",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(swift /private/tmp/claude-501/-Users-jgreene-Desktop-Codeworks-bnrysite/9aef1057-7ba5-413b-8e89-43b23027dd34/scratchpad/frames.swift '/Users/jgreene/Desktop/Screen Recording 2026-07-14 at 8.04.38 AM.mov' /private/tmp/claude-501/-Users-jgreene-Desktop-Codeworks-bnrysite/9aef1057-7ba5-413b-8e89-43b23027dd34/scratchpad/ref)",
+      "Bash(cp '/Users/jgreene/Desktop/Screen Recording 2026-07-14 at 8.04.38 AM.mov' /private/tmp/claude-501/-Users-jgreene-Desktop-Codeworks-bnrysite/9aef1057-7ba5-413b-8e89-43b23027dd34/scratchpad/ref.mov)",
+      "Bash(swift /private/tmp/claude-501/-Users-jgreene-Desktop-Codeworks-bnrysite/9aef1057-7ba5-413b-8e89-43b23027dd34/scratchpad/frames.swift /private/tmp/claude-501/-Users-jgreene-Desktop-Codeworks-bnrysite/9aef1057-7ba5-413b-8e89-43b23027dd34/scratchpad/ref.mov /private/tmp/claude-501/-Users-jgreene-Desktop-Codeworks-bnrysite/9aef1057-7ba5-413b-8e89-43b23027dd34/scratchpad/ref)"
     ]
   }
 }

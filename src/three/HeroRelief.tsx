@@ -18,51 +18,27 @@ import { FluidSim } from './FluidSim'
 const PATH = '/hero/relief.glb'
 const WALL = '#ececea'
 
-// Matte plaster matcap: high-key, low-contrast, soft top-light. Deliberately
-// NO specular hotspot and NO dark rim — that contrast is what read as glossy
-// silver. This gives soft clay/porcelain diffuse shading instead.
+// Matte plaster matcap keyed to the WALL: the CENTER (camera-facing normals,
+// i.e. the flattened hidden state) is exactly the wall color, so the flat
+// surface and the wall are one continuous material. Shading emerges only as
+// gently darker crevices toward the rim — like the reference, the relief
+// reads through shadows, never through bright highlights.
 function makeMatcap(size = 256) {
   const c = document.createElement('canvas')
   c.width = c.height = size
   const ctx = c.getContext('2d')!
 
-  // Soft diffuse: gently brighter up top, slightly cooler-dim at the bottom.
-  const lin = ctx.createLinearGradient(0, 0, 0, size)
-  lin.addColorStop(0.0, '#fcfcfb')
-  lin.addColorStop(0.55, '#f0f0ee')
-  lin.addColorStop(1.0, '#e2e2df')
-  ctx.fillStyle = lin
-  ctx.fillRect(0, 0, size, size)
-
-  // Very broad, faint fill light (no tight hotspot => matte, not shiny).
-  const fill = ctx.createRadialGradient(
-    size * 0.44, size * 0.36, 0,
-    size * 0.5, size * 0.5, size * 0.75,
+  const g = ctx.createRadialGradient(
+    size * 0.46, size * 0.4, size * 0.02,
+    size * 0.5, size * 0.5, size * 0.62,
   )
-  fill.addColorStop(0.0, 'rgba(255,255,255,0.28)')
-  fill.addColorStop(1.0, 'rgba(255,255,255,0)')
-  ctx.fillStyle = fill
+  g.addColorStop(0.0, '#f0f0ed') // whisper of top light
+  g.addColorStop(0.22, '#ececea') // == WALL: flat state disappears into it
+  g.addColorStop(0.62, '#e1e1de') // gentle falloff
+  g.addColorStop(0.86, '#d0d0cc') // soft crevice shadow
+  g.addColorStop(1.0, '#c2c2be') // deepest fold
+  ctx.fillStyle = g
   ctx.fillRect(0, 0, size, size)
-
-  // Gentle soft-AO only right at the silhouette — keeps it light, not metallic.
-  const rim = ctx.createRadialGradient(
-    size * 0.5, size * 0.5, size * 0.38,
-    size * 0.5, size * 0.5, size * 0.5,
-  )
-  rim.addColorStop(0.0, 'rgba(60,58,54,0)')
-  rim.addColorStop(1.0, 'rgba(60,58,54,0.14)')
-  ctx.fillStyle = rim
-  ctx.fillRect(0, 0, size, size)
-
-  // Faint grain so it reads as chalk, not plastic.
-  const img = ctx.getImageData(0, 0, size, size)
-  for (let i = 0; i < img.data.length; i += 4) {
-    const n = (Math.random() - 0.5) * 3
-    img.data[i] += n
-    img.data[i + 1] += n
-    img.data[i + 2] += n
-  }
-  ctx.putImageData(img, 0, 0)
 
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
@@ -71,26 +47,30 @@ function makeMatcap(size = 256) {
 
 const vertex = /* glsl */ `
   uniform sampler2D uTrail;
-  uniform float uGrow;
+  uniform float uFlattenZ;
   varying vec2 vUv;
   varying vec3 vViewNormal;
   varying vec4 vMvPosition;
-  varying float vGrow;
   void main() {
     vUv = uv;
-    vViewNormal = normalize(normalMatrix * normal);
+    vec3 n = normalize(normalMatrix * normal);
 
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    // Sample the fluid dye at this vertex's projected screen position.
-    vec4 clip = projectionMatrix * mv;
-    vec2 screenUv = clip.xy / clip.w * 0.5 + 0.5;
-    float dye = texture2D(uTrail, screenUv).r;
-    float grow = smoothstep(0.0, 0.5, dye);
-    vGrow = grow;
 
-    // Recede into the page when hidden; sit at full depth where revealed, so
-    // the 3D relief grows OUT of the flat wall as the cursor passes.
-    mv.z -= uGrow * (1.0 - grow);
+    // Sample the fluid dye at this vertex's WALL-PLANE screen position, so
+    // the reveal stays anchored under the cursor in the hidden state.
+    vec4 clipFlat = projectionMatrix * vec4(mv.xy, uFlattenZ, 1.0);
+    vec2 screenUv = clipFlat.xy / clipFlat.w * 0.5 + 0.5;
+    float dye = texture2D(uTrail, screenUv).r;
+    float grow = smoothstep(0.0, 0.85, dye);
+
+    // Hidden state = the SAME mesh flattened into the wall plane with
+    // camera-facing normals: a flat surface matcap-shades as uniform wall.
+    // As dye grows the relief, geometry + normals ease back in, so the
+    // sculpture's shading emerges from the form itself — one continuous
+    // material, no overlay mask, no color seam.
+    mv.z = mix(uFlattenZ, mv.z, grow);
+    vViewNormal = normalize(mix(vec3(0.0, 0.0, 1.0), n, grow));
 
     vMvPosition = mv;
     gl_Position = projectionMatrix * mv;
@@ -135,26 +115,24 @@ const fragment = /* glsl */ `
     vec3 n = normalize(vViewNormal);
     vec2 matcapUv = getMatcapUv(vMvPosition, n);
 
-    // Fluid dye => reveal mask (screen space; GL render target is y-up).
+    // No mask mix — the reveal is purely geometric (vertex flatten/grow).
+    // The dye is only sampled here for a whisper of chromatic fringing on
+    // the freshly-revealed boundary.
     vec2 suv = gl_FragCoord.xy / uResolution;
     float dye = texture2D(uTrail, suv).r;
-    float mask = smoothstep(0.03, 0.55, dye);
-
-    // Subtle chromatic aberration at the fresh reveal boundary (green/magenta).
-    float edge = clamp(mask * (1.0 - mask) * 4.0, 0.0, 1.0);
+    float m = smoothstep(0.015, 0.6, dye);
+    float edge = clamp(m * (1.0 - m) * 4.0, 0.0, 1.0);
     vec2 caDir = normalize(vec2(dFdx(dye), dFdy(dye)) + 1e-6);
     vec2 caOff = caDir * edge * uCA;
     float rr = texture2D(uMatcap, matcapUv + caOff).r;
     float gg = texture2D(uMatcap, matcapUv).g;
     float bb = texture2D(uMatcap, matcapUv - caOff).b;
-    vec3 relief = vec3(rr, gg, bb);
+    vec3 col = vec3(rr, gg, bb);
 
-    // Hidden state: blank plaster wall with faint paper grain.
+    // Faint continuous paper grain — same surface everywhere.
     float grain = texture2D(uPlaster, vUv * 3.0).r;
-    vec3 wall = uWall * mix(0.975, 1.025, grain);
+    col *= mix(0.985, 1.015, grain);
 
-    // The sculpted relief is revealed only along the mouse trail.
-    vec3 col = mix(wall, relief, mask);
     gl_FragColor = vec4(col, 1.0);
   }
 `
@@ -185,9 +163,8 @@ export default function HeroRelief() {
       uPlaster: { value: plasterMap },
       uResolution: { value: new THREE.Vector2(1, 1) },
       uTime: { value: 0 },
-      uWall: { value: new THREE.Color(WALL) },
       uCA: { value: 0.012 },
-      uGrow: { value: 0.3 },
+      uFlattenZ: { value: -2.25 }, // view-space z of the wall plane (set after fit)
     }),
     [matcapTex, plasterMap, sim],
   )
@@ -291,7 +268,13 @@ export default function HeroRelief() {
     box = new THREE.Box3().setFromObject(g)
     g.position.copy(box.getCenter(new THREE.Vector3()).multiplyScalar(-1))
     g.updateMatrixWorld(true)
-  }, [camera, model, size.height, size.width])
+
+    // Wall plane = the relief's back plane, in view space (camera on +z axis
+    // looking at origin, so viewZ = worldZ - cameraZ). Flattened geometry
+    // collapses onto this plane.
+    box = new THREE.Box3().setFromObject(g)
+    uniforms.uFlattenZ.value = box.min.z - camera.position.z
+  }, [camera, model, size.height, size.width, uniforms])
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {

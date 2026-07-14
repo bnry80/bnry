@@ -197,13 +197,13 @@ export type FluidConfig = {
 export const DEFAULT_FLUID: FluidConfig = {
   simRes: 128,
   dyeRes: 512,
-  densityDissipation: 0.9, // dye fades over ~1.5–2.5s
-  velocityDissipation: 0.25, // momentum lingers after the cursor stops
+  densityDissipation: 0.4, // long linger — the path stays revealed ~5s+, settling slowly
+  velocityDissipation: 2.2, // currents die fast — soft bloom, no sloshing
   pressure: 0.8,
   pressureIterations: 20,
-  curl: 12, // subtle organic swirl
-  splatRadius: 0.0035,
-  splatForce: 4500,
+  curl: 2, // barely-there swirl; the reference is calm, not turbulent
+  splatRadius: 0.012, // BROAD soft brush — the reference reveal spans a huge swath
+  splatForce: 1200, // gentle spread — a breath, not a jet
 }
 
 export class FluidSim {
@@ -328,7 +328,7 @@ export class FluidSim {
     this.velocity.swap()
 
     // dye amount scales with stroke speed — fast strokes paint boldly
-    const amount = Math.min(1.0, Math.max(0.12, delta.length() * 30))
+    const amount = Math.min(1.0, Math.max(0.28, delta.length() * 30))
     u.uTarget.value = this.dye.read.texture
     u.uColor.value.set(amount, amount, amount)
     this.blit(this.dye.write, this.splatMat)
