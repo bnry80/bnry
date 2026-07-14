@@ -11,7 +11,10 @@
       "Bash(curl -sL \"https://www.figma.com/api/mcp/asset/a706f6c4-80ae-42ad-9bab-f4c865e16248\" -o wordmark.png)",
       "Bash(sips -g pixelWidth -g pixelHeight relief-base.png)",
       "mcp__claude-in-chrome__navigate",
-      "mcp__claude-in-chrome__tabs_context_mcp"
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "Bash(curl -sL -A \"Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 Chrome/120 Safari/537.36\" https://immersive-g.com/ -o ig.html)",
+      "Bash(node -e ' *)",
+      "Bash(node -e 'process.stdin.resume\\(\\);let d=\"\";process.stdin.on\\(\"data\",c=>d+=c\\);process.stdin.on\\(\"end\",\\(\\)=>{ // pretty-ish: split on ; and { } *)"
     ]
   }
 }
