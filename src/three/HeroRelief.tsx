@@ -14,7 +14,7 @@ import * as THREE from 'three'
    ------------------------------------------------------------------------- */
 
 const PATH = '/hero/relief.glb'
-const WALL = '#e8e4dc'
+const WALL = '#ececea'
 const TRAIL = 1024
 
 // Light plaster matcap: bright upper-left highlight easing to a soft grey rim.
@@ -26,10 +26,10 @@ function makeMatcap(size = 256) {
     size * 0.38, size * 0.34, size * 0.02,
     size * 0.5, size * 0.52, size * 0.62,
   )
-  g.addColorStop(0.0, '#f8f5ef')
-  g.addColorStop(0.35, '#ece7de')
-  g.addColorStop(0.7, '#dbd5cb')
-  g.addColorStop(1.0, '#c2bcb1')
+  g.addColorStop(0.0, '#fbfbfb')
+  g.addColorStop(0.35, '#eeeeec')
+  g.addColorStop(0.7, '#dcdcda')
+  g.addColorStop(1.0, '#c6c6c4')
   ctx.fillStyle = g
   ctx.fillRect(0, 0, size, size)
   // faint grain so the plaster isn't glassy
@@ -184,7 +184,7 @@ export default function HeroRelief() {
       uPlaster: { value: plasterMap },
       uResolution: { value: new THREE.Vector2(1, 1) },
       uTime: { value: 0 },
-      uAmplitude: { value: 0.55 },
+      uAmplitude: { value: 0.12 },
       uHueShift: { value: 0.17 },
       uColorRange: { value: 4.0 },
       uFresnelSharpness: { value: 2.5 },
