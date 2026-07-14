@@ -202,7 +202,7 @@ export const DEFAULT_FLUID: FluidConfig = {
   pressure: 0.8,
   pressureIterations: 20,
   curl: 2, // barely-there swirl; the reference is calm, not turbulent
-  splatRadius: 0.012, // BROAD soft brush — the reference reveal spans a huge swath
+  splatRadius: 0.006, // modest brush — the reference reveals a bit at a time
   splatForce: 1200, // gentle spread — a breath, not a jet
 }
 
@@ -327,8 +327,9 @@ export class FluidSim {
     this.blit(this.velocity.write, this.splatMat)
     this.velocity.swap()
 
-    // dye amount scales with stroke speed — fast strokes paint boldly
-    const amount = Math.min(1.0, Math.max(0.28, delta.length() * 30))
+    // Low per-splat dye: height BUILDS over successive frames of contact,
+    // so the relief visibly rises out of the wall rather than snapping up.
+    const amount = Math.min(0.4, Math.max(0.09, delta.length() * 10))
     u.uTarget.value = this.dye.read.texture
     u.uColor.value.set(amount, amount, amount)
     this.blit(this.dye.write, this.splatMat)

@@ -32,11 +32,14 @@ function makeMatcap(size = 256) {
     size * 0.46, size * 0.4, size * 0.02,
     size * 0.5, size * 0.5, size * 0.62,
   )
-  g.addColorStop(0.0, '#f0f0ed') // whisper of top light
-  g.addColorStop(0.22, '#ececea') // == WALL: flat state disappears into it
-  g.addColorStop(0.62, '#e1e1de') // gentle falloff
-  g.addColorStop(0.86, '#d0d0cc') // soft crevice shadow
-  g.addColorStop(1.0, '#c2c2be') // deepest fold
+  // CLAY: a wide flat wall-toned face, shading confined to a narrow band of
+  // soft crevice shadow at the extreme rim. Any broad smooth gradient across
+  // the face is what reads as metal.
+  g.addColorStop(0.0, '#eeeeec') // near-flat face
+  g.addColorStop(0.45, '#ececea') // == WALL: flat state disappears into it
+  g.addColorStop(0.78, '#e6e6e3') // barely-there falloff
+  g.addColorStop(0.93, '#d8d8d4') // soft crevice shadow
+  g.addColorStop(1.0, '#cccdc9') // deepest fold — gentle, not black
   ctx.fillStyle = g
   ctx.fillRect(0, 0, size, size)
 
@@ -47,6 +50,7 @@ function makeMatcap(size = 256) {
 
 const vertex = /* glsl */ `
   uniform sampler2D uTrail;
+  uniform sampler2D uPlaster;
   uniform float uFlattenZ;
   varying vec2 vUv;
   varying vec3 vViewNormal;
@@ -62,7 +66,11 @@ const vertex = /* glsl */ `
     vec4 clipFlat = projectionMatrix * vec4(mv.xy, uFlattenZ, 1.0);
     vec2 screenUv = clipFlat.xy / clipFlat.w * 0.5 + 0.5;
     float dye = texture2D(uTrail, screenUv).r;
-    float grow = smoothstep(0.0, 0.85, dye);
+
+    // Noise-modulated edge (IG uses a repeat-wrapped noise on the reveal):
+    // breaks the boundary into organic plaster-like feathering, never a circle.
+    float noise = texture2D(uPlaster, mv.xy * 0.9 + vec2(0.5)).r;
+    float grow = smoothstep(0.0, 0.85, dye * (0.65 + 0.7 * noise));
 
     // Hidden state = the SAME mesh flattened into the wall plane with
     // camera-facing normals: a flat surface matcap-shades as uniform wall.
@@ -87,8 +95,9 @@ const fragment = /* glsl */ `
   uniform sampler2D uTrail;
   uniform sampler2D uPlaster;
   uniform vec2  uResolution;
-  uniform vec3  uWall;
   uniform float uCA;
+  uniform vec3  uCursorPoint;     // cursor as a soft light, view space
+  uniform float uCursorIntensity;
 
   // IG's matcap uv from view position + view normal
   vec2 getMatcapUv(vec4 mv, vec3 n) {
@@ -129,6 +138,15 @@ const fragment = /* glsl */ `
     float bb = texture2D(uMatcap, matcapUv - caOff).b;
     vec3 col = vec3(rr, gg, bb);
 
+    // Cursor as a soft light (IG's cursorLight): shading shifts across the
+    // forms as the pointer moves, so the relief feels like it's rising to
+    // meet the cursor — not just being unmasked.
+    vec3 toLight = uCursorPoint - vMvPosition.xyz;
+    float lightDist = length(toLight);
+    float diff = max(dot(n, normalize(toLight)), 0.0);
+    float decay = max(0.0, 1.0 - lightDist * 1.1);
+    col += vec3(0.055) * diff * decay * uCursorIntensity;
+
     // Faint continuous paper grain — same surface everywhere.
     float grain = texture2D(uPlaster, vUv * 3.0).r;
     col *= mix(0.985, 1.015, grain);
@@ -165,6 +183,8 @@ export default function HeroRelief() {
       uTime: { value: 0 },
       uCA: { value: 0.012 },
       uFlattenZ: { value: -2.25 }, // view-space z of the wall plane (set after fit)
+      uCursorPoint: { value: new THREE.Vector3(0, 0, -1.9) },
+      uCursorIntensity: { value: 0 },
     }),
     [matcapTex, plasterMap, sim],
   )
@@ -297,12 +317,30 @@ export default function HeroRelief() {
 
     // Splat this frame's stroke into the fluid, then integrate the sim.
     delta.current.subVectors(pointer.current, prev.current)
-    if (hasMoved.current && delta.current.lengthSq() > 1e-9) {
+    const moving = hasMoved.current && delta.current.lengthSq() > 1e-9
+    if (moving) {
       sim.splat(pointer.current, delta.current, size.width / Math.max(size.height, 1))
     }
     prev.current.copy(pointer.current)
     sim.step(dt)
     uniforms.uTrail.value = sim.texture
+
+    // Cursor light: unproject the pointer onto a point floating just in
+    // front of the wall plane (camera sits on +z looking at the origin).
+    if (camera instanceof THREE.PerspectiveCamera) {
+      const dist = camera.position.z
+      const visH = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * dist
+      const visW = visH * (size.width / Math.max(size.height, 1))
+      uniforms.uCursorPoint.value.set(
+        (pointer.current.x - 0.5) * visW,
+        (pointer.current.y - 0.5) * visH,
+        uniforms.uFlattenZ.value + 0.45,
+      )
+    }
+    // Ease the light up while the pointer is active, out when it rests.
+    const targetI = hasMoved.current ? (moving ? 1 : 0.35) : 0
+    uniforms.uCursorIntensity.value +=
+      (targetI - uniforms.uCursorIntensity.value) * Math.min(1, dt * 4)
   })
 
   useEffect(
