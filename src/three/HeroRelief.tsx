@@ -298,13 +298,14 @@ export default function HeroRelief() {
 
     const { ctx, tex } = trail
     // Dissipating dye — soft wash across the wall.
-    const keep = Math.pow(0.992, dt * 60)
+    const keep = Math.pow(0.986, dt * 60)
     ctx.globalCompositeOperation = 'source-over'
     ctx.fillStyle = `rgba(0,0,0,${1 - keep})`
     ctx.fillRect(0, 0, TRAIL, TRAIL)
 
     if (hasMoved.current) {
-      const ease = 1 - Math.exp(-1.5 * dt)
+      // Tight follow — the reveal must feel welded to the cursor, not trailing.
+      const ease = 1 - Math.exp(-60 * dt)
       head.current.lerp(pointer.current, ease)
       const steps = Math.max(1, Math.ceil(head.current.distanceTo(prev.current) * TRAIL * 0.7))
       ctx.globalCompositeOperation = 'lighter'
