@@ -83,18 +83,8 @@ const fragment = /* glsl */ `
   uniform sampler2D uTrail;
   uniform sampler2D uPlaster;
   uniform vec2  uResolution;
-  uniform float uTime;
-
-  uniform float uAmplitude;
-  uniform float uHueShift;
-  uniform float uColorRange;
-  uniform float uFresnelSharpness;
-  uniform float uFresnelOpacity;
-  uniform float uLinesSpeed;
-  uniform float uLinesScale;
-  uniform float uLinesStrength;
-  uniform float uLinesWaveLength;
-  uniform float uFluidMagnitude;
+  uniform vec3  uWall;
+  uniform float uCA;
 
   // IG's matcap uv from view position + view normal
   vec2 getMatcapUv(vec4 mv, vec3 n) {
@@ -119,42 +109,28 @@ const fragment = /* glsl */ `
 
   void main() {
     vec3 n = normalize(vViewNormal);
-
-    // Plaster base: matcap shading + faint grain.
     vec2 matcapUv = getMatcapUv(vMvPosition, n);
-    vec3 base = texture2D(uMatcap, matcapUv).rgb;
-    float grain = texture2D(uPlaster, vUv * 4.0).r;
-    base *= mix(0.96, 1.04, grain);
 
-    // Mouse fluid dye (screen-space; trail canvas is y-down so flip y).
+    // Mouse dye trail => reveal mask (screen space; trail canvas is y-down).
     vec2 suv = gl_FragCoord.xy / uResolution;
     float dye = texture2D(uTrail, vec2(suv.x, 1.0 - suv.y)).r;
-    float fluidEdges = smoothstep(0.0, 0.6, dye) * uFluidMagnitude;
+    float mask = smoothstep(0.03, 0.55, dye);
 
-    // Fresnel edge mask — iridescence lives on grazing rims.
-    float fres = abs(dot(n, vec3(0.0, 0.0, 1.0)));
-    float invF = 1.0 - pow(1.0 - fres, uFresnelSharpness);
-    float mask = smoothstep(1.0, 0.1, mix(invF, 1.0, 1.0 - uFresnelOpacity));
+    // Subtle chromatic aberration at the fresh reveal boundary (green/magenta).
+    float edge = clamp(mask * (1.0 - mask) * 4.0, 0.0, 1.0);
+    vec2 caDir = normalize(vec2(dFdx(dye), dFdy(dye)) + 1e-6);
+    vec2 caOff = caDir * edge * uCA;
+    float rr = texture2D(uMatcap, matcapUv + caOff).r;
+    float gg = texture2D(uMatcap, matcapUv).g;
+    float bb = texture2D(uMatcap, matcapUv - caOff).b;
+    vec3 relief = vec3(rr, gg, bb);
 
-    // Animated shimmer lines.
-    vec2 uvLines = vUv + uTime * 0.01 * uLinesSpeed;
-    uvLines.x = uvLines.x * 1000.0 / uLinesScale;
-    uvLines.y = sin(uvLines.y * 50.0 * uLinesWaveLength) * 20.0 / uLinesScale;
-    float lines = smoothstep(-1.0, 0.5, sin(uvLines.x + uvLines.y));
-    lines = mix(1.0, lines, uLinesStrength);
+    // Hidden state: blank plaster wall with faint paper grain.
+    float grain = texture2D(uPlaster, vUv * 3.0).r;
+    vec3 wall = uWall * mix(0.975, 1.025, grain);
 
-    // Iridescent color from the surface normal.
-    vec3 nv = n;
-    nv.z *= uColorRange;
-    nv = normalize(nv);
-    vec3 nc = (nv + 1.0) * 0.5;
-    nc = rgb2hsv(nc);
-    nc.r = fract(nc.r + uHueShift);
-    nc = hsv2rgb(nc);
-
-    float amt = clamp(mask * fluidEdges * lines * uAmplitude, 0.0, 1.0);
-    vec3 col = mix(base, nc, amt);
-
+    // The sculpted relief is revealed only along the mouse trail.
+    vec3 col = mix(wall, relief, mask);
     gl_FragColor = vec4(col, 1.0);
   }
 `
@@ -184,16 +160,8 @@ export default function HeroRelief() {
       uPlaster: { value: plasterMap },
       uResolution: { value: new THREE.Vector2(1, 1) },
       uTime: { value: 0 },
-      uAmplitude: { value: 0.12 },
-      uHueShift: { value: 0.17 },
-      uColorRange: { value: 4.0 },
-      uFresnelSharpness: { value: 2.5 },
-      uFresnelOpacity: { value: 1.0 },
-      uLinesSpeed: { value: 2.0 },
-      uLinesScale: { value: 2.63 },
-      uLinesStrength: { value: 0.5 },
-      uLinesWaveLength: { value: 0.2 },
-      uFluidMagnitude: { value: 1.4 },
+      uWall: { value: new THREE.Color(WALL) },
+      uCA: { value: 0.012 },
     }),
     [matcapTex, plasterMap, trail.tex],
   )
@@ -314,7 +282,7 @@ export default function HeroRelief() {
 
     const { ctx, tex } = trail
     // Dissipating dye — soft wash across the wall.
-    const keep = Math.pow(0.985, dt * 60)
+    const keep = Math.pow(0.992, dt * 60)
     ctx.globalCompositeOperation = 'source-over'
     ctx.fillStyle = `rgba(0,0,0,${1 - keep})`
     ctx.fillRect(0, 0, TRAIL, TRAIL)
